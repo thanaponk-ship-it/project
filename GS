@@ -1,0 +1,261 @@
+/**
+ * Google Apps Script Backend for BeNeat Housekeeper Quals Dashboard
+ * ปรับปรุง: เปลี่ยนชื่อกลุ่มจาก A, B, C เป็น X, Y, Z
+ * ลำดับ Stats: [App (X), Cleaning (Y), Problem Solving (Z)]
+ * เงื่อนไข: อิงผลการเทรนจากคอลัมน์ AM (Index 38)
+ */
+
+function doGet() {
+  return HtmlService.createTemplateFromFile('index')
+    .evaluate()
+    .setTitle('BeNeat Housekeeper Dashboard')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function include(filename) {
+  try {
+    return HtmlService.createHtmlOutputFromFile(filename).getContent();
+  } catch (e) {
+    return `<!-- Error including ${filename}: ${e.message} -->`;
+  }
+}
+
+function getUserRole() {
+  const ssId = '1P7JLmqIya4q3-sWd3daTORx6iW9bq4hnRy5ZCVRpL9M';
+  const userEmail = Session.getActiveUser().getEmail();
+  try {
+    const ss = SpreadsheetApp.openById(ssId);
+    const adminSheet = ss.getSheetByName('Admin');
+    if (!adminSheet || adminSheet.getLastRow() === 0) return { email: userEmail, role: 'Guest' };
+    
+    const data = adminSheet.getDataRange().getValues();
+    let userRole = 'Guest';
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] && data[i][0].toString().toLowerCase().trim() === userEmail.toLowerCase().trim()) {
+        userRole = data[i][2] ? data[i][2].toString().trim() : 'Guest';
+        break;
+      }
+    }
+    return { email: userEmail, role: userRole };
+  } catch (e) {
+    return { email: userEmail, role: 'Guest', error: e.message };
+  }
+}
+
+function getHousekeeperData() {
+  const userInfo = getUserRole();
+  if (userInfo.role === 'Guest') {
+    return { housekeepers: [], currentUser: userInfo, authorized: false };
+  }
+
+  const ssId = '1P7JLmqIya4q3-sWd3daTORx6iW9bq4hnRy5ZCVRpL9M';
+  const sheetName = 'Stat';
+  try {
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) throw new Error(`ไม่พบแผ่นงานชื่อ '${sheetName}' ใน Spreadsheet`);
+    if (sheet.getLastRow() <= 1) return { housekeepers: [], currentUser: userInfo, authorized: true };
+
+    const data = sheet.getDataRange().getValues();
+    const rows = data.slice(1); 
+    const filteredRows = rows.filter(row => row[2] && row[2].toString().trim() !== "");
+
+    const result = filteredRows.map(row => {
+      const cleaningRes = checkDetailedAnswers(row, [9, 10, 11, 12, 13, 14]); 
+      const problemSolvingRes = checkDetailedAnswers(row, [15, 16, 17, 18]); 
+      
+      let smAppScoreRaw = parseFloat(row[29]); 
+      let appScoreBase100 = 0;
+      if (!isNaN(smAppScoreRaw)) {
+        appScoreBase100 = (smAppScoreRaw / 5) * 100;
+      } else {
+        let systemScore = parseFloat(row[1]) || 0;
+        if (systemScore > 0 && systemScore <= 10) systemScore = systemScore * 10;
+        appScoreBase100 = systemScore > 0 ? systemScore : 100;
+      }
+
+      return {
+        timestamp: row[0] ? row[0].toString() : "",
+        name: row[2] ? row[2].toString() : "ไม่ระบุชื่อ",
+        age: row[3] ? row[3].toString() : "-",
+        gender: row[4] ? row[4].toString() : "-",
+        expDuration: row[7] ? row[7].toString() : "-", 
+        expDetail: row[6] ? row[6].toString() : "-",   
+        expectedSalary: row[8] ? row[8].toString() : "0",
+        examScore: cleaningRes.correctCount + problemSolvingRes.correctCount,
+        smComment: row[28] ? row[28].toString() : "",
+        smScore: !isNaN(smAppScoreRaw) ? smAppScoreRaw : null,
+        prRecruit: row[30] ? row[30].toString() : "",
+        prTrainer: row[31] ? row[31].toString() : "",
+        group: row[32] ? row[32].toString() : "ยังไม่มีกลุ่ม",
+        trainingDate: formatThaiDate(row[26]),
+        trainingCenter: row[27] ? row[27].toString() : "-",
+        smUser: row[33] ? row[33].toString() : "-",
+        recruitUser: row[34] ? row[34].toString() : "-",
+        trainerUser: row[35] ? row[35].toString() : "-",
+        housekeeperId: row[36] ? row[36].toString() : "",
+        postTrainingScore: row[37] ? row[37].toString() : "",
+        trainingStatus: row[38] ? row[38].toString().trim() : "", // คอลัมน์ AM
+        phone: row[39] ? row[39].toString() : "-",
+        qcComment: row[40] ? row[40].toString() : "",
+        smFinalComment: row[41] ? row[41].toString() : "",
+        qcUser: row[42] ? row[42].toString() : "-",
+        smFinalUser: row[43] ? row[43].toString() : "-",
+        allWrongWithAnswers: [...cleaningRes.wrongWithAnswers, ...problemSolvingRes.wrongWithAnswers],
+        stats: [
+          (appScoreBase100 * 0.35).toFixed(1),
+          (cleaningRes.scorePercent * 0.35).toFixed(1),
+          (problemSolvingRes.scorePercent * 0.30).toFixed(1)
+        ],
+        rawScores: [
+          Math.round(appScoreBase100),
+          Math.round(cleaningRes.scorePercent), 
+          Math.round(problemSolvingRes.scorePercent)
+        ]
+      };
+    });
+    return { housekeepers: result, currentUser: userInfo, authorized: true };
+  } catch (e) {
+    throw new Error("ระบบดึงข้อมูลขัดข้อง: " + e.message);
+  }
+}
+
+function formatThaiDate(dateValue) {
+  if (!dateValue || dateValue === "-") return "-";
+  try {
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime())) return dateValue.toString();
+    const d = ("0" + date.getDate()).slice(-2);
+    const m = ("0" + (date.getMonth() + 1)).slice(-2);
+    const y = date.getFullYear();
+    return `${d}/${m}/${y}`;
+  } catch (e) {
+    return dateValue.toString();
+  }
+}
+
+function checkDetailedAnswers(row, indices) {
+  const correctAnswers = {
+    9: "ทำจากบนลงล่าง / จากสะอาดไปสกปรก / จากในออกนอก",
+    10: "อ่างล้างมือ/กระจกก่อน แล้วค่อยโถสุขภัณฑ์เป็นลำดับท้าย",
+    11: "อ่านฉลาก/ทดสอบจุดเล็กก่อนใช้ และล้าง/เช็ดด้วยน้ำสะอาดหลังใช้งาน",
+    12: "น้ำยาที่ไม่มีกรด หรือสูตรอ่อนโยนสำหรับหินอ่อน",
+    13: "ใช้ผ้าบิดหมาด ๆ และเช็ดตามด้วยผ้าแห้งทันที",
+    14: "ทดสอบจุดเล็กก่อน/ใช้น้ำยาอ่อนก่อน และถ้าไม่แน่ใจให้ถามลูกค้าหรือแจ้งบริษัท",
+    15: "แจ้งว่าจะช่วยตามเวลาที่เหลือ และถ้าเกินขอบเขต/เวลาให้เสนอทางเลือก เช่น เพิ่มเวลา/จองเพิ่ม/แจ้งบริษัท",
+    16: "หลีกเลี่ยงการจับต้อง ถ้าจำเป็นต้องย้ายให้แจ้งลูกค้าก่อน และวางในที่ปลอดภัย",
+    17: "ขอโทษและขอรายละเอียดจุดที่ไม่พอใจ จากนั้นแก้ไขทันทีหรือแจ้งบริษัทเพื่อช่วยประสาน",
+    18: "อ่านฉลาก แยกผ้า/อุปกรณ์ตามพื้นที่ และทดสอบจุดเล็กก่อนใช้งาน"
+  };
+  const questionTitles = {
+    9: "ลำดับการทำความสะอาด", 10: "จุดทำความสะอาดห้องน้ำ", 11: "หลักการใช้สารเคมี",
+    12: "พื้นผิวไวต่อกรด", 13: "การเช็ดพื้นไม้", 14: "คราบฝังแน่น",
+    15: "ลูกค้าของานเพิ่ม", 16: "ทรัพย์สินลูกค้า", 17: "ลูกค้าร้องเรียน", 18: "การป้องกันความผิดพลาด"
+  };
+  let correctCount = 0;
+  let wrongWithAnswers = [];
+  indices.forEach(i => {
+    const rawUserAnswer = row[i] ? row[i].toString().trim() : "";
+    const userAnswer = rawUserAnswer.toLowerCase();
+    const correctAnswer = correctAnswers[i] ? correctAnswers[i].toString().trim().toLowerCase() : "";
+    if (userAnswer !== "" && userAnswer === correctAnswer) {
+      correctCount++;
+    } else {
+      const displayAnswer = rawUserAnswer === "" ? "ไม่ได้ตอบ" : rawUserAnswer;
+      wrongWithAnswers.push(`${questionTitles[i]}: ${displayAnswer}`);
+    }
+  });
+  const scorePercent = indices.length > 0 ? (correctCount / indices.length) * 100 : 0;
+  return { scorePercent, wrongWithAnswers, correctCount, total: indices.length };
+}
+
+function saveAssessment(timestamp, smComment, smScore, prRecruit, prTrainer, housekeeperId, postTrainingScore, trainingStatus, phone, qcComment, smFinalComment) {
+  const ssId = '1P7JLmqIya4q3-sWd3daTORx6iW9bq4hnRy5ZCVRpL9M';
+  const sheetName = 'Stat';
+  const auth = getUserRole();
+  if (auth.role === 'Guest') throw new Error("คุณไม่มีสิทธิ์บันทึกข้อมูล");
+  const now = new Date();
+  const timeStr = Utilities.formatDate(now, "GMT+7", "dd/MM/yyyy HH:mm");
+  try {
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) throw new Error("ไม่พบแผ่นงานปลายทาง");
+    const data = sheet.getDataRange().getValues();
+    let rowIndex = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0].toString() === timestamp.toString()) { 
+        rowIndex = i + 1; 
+        break; 
+      }
+    }
+    if (rowIndex !== -1) {
+      if (auth.role === 'SM' || auth.role === 'Admin') {
+        if (smComment !== undefined && smComment !== null && smComment.toString().trim() !== "") {
+          sheet.getRange(rowIndex, 29).setValue(smComment); 
+          sheet.getRange(rowIndex, 34).setValue(`${auth.email} (${timeStr})`); 
+        }
+        if (smScore !== "" && smScore !== undefined && smScore !== null) {
+          sheet.getRange(rowIndex, 30).setValue(smScore);
+        }
+        if (qcComment !== undefined && qcComment !== null && qcComment.toString().trim() !== "") {
+          sheet.getRange(rowIndex, 41).setValue(qcComment);
+          sheet.getRange(rowIndex, 43).setValue(`${auth.email} (${timeStr})`);
+        }
+        if (smFinalComment !== undefined && smFinalComment !== null && smFinalComment.toString().trim() !== "") {
+          sheet.getRange(rowIndex, 42).setValue(smFinalComment);
+          sheet.getRange(rowIndex, 44).setValue(`${auth.email} (${timeStr})`);
+        }
+      }
+      if (prRecruit !== undefined && prRecruit !== null && prRecruit.toString().trim() !== "") {
+        sheet.getRange(rowIndex, 31).setValue(prRecruit); 
+        sheet.getRange(rowIndex, 35).setValue(`${auth.email} (${timeStr})`); 
+      }
+      if (auth.role === 'PR' || auth.role === 'Admin' || auth.role === 'SM') {
+        if (prTrainer !== undefined && prTrainer !== null && prTrainer.toString().trim() !== "") {
+          sheet.getRange(rowIndex, 32).setValue(prTrainer); 
+          sheet.getRange(rowIndex, 36).setValue(`${auth.email} (${timeStr})`); 
+        }
+        if (housekeeperId !== undefined && housekeeperId !== null && housekeeperId.toString().trim() !== "") {
+          sheet.getRange(rowIndex, 37).setValue(housekeeperId);
+        }
+        if (postTrainingScore !== undefined && postTrainingScore !== null && postTrainingScore.toString().trim() !== "") {
+          sheet.getRange(rowIndex, 38).setValue(postTrainingScore);
+        }
+        if (trainingStatus !== undefined && trainingStatus !== null && trainingStatus !== "") {
+          sheet.getRange(rowIndex, 39).setValue(trainingStatus);
+        }
+        if (phone !== undefined && phone !== null) {
+          sheet.getRange(rowIndex, 40).setValue(phone);
+        }
+      }
+      return { success: true };
+    }
+    throw new Error("ไม่พบข้อมูลเดิมในระบบ");
+  } catch (e) { throw new Error("บันทึกข้อมูลไม่สำเร็จ: " + e.message); }
+}
+
+function updateHousekeeperGroup(timestamp, groupName) {
+  const auth = getUserRole();
+  if (auth.role === 'Guest' || auth.role === 'PR') throw new Error("คุณไม่มีสิทธิ์ย้ายกลุ่ม");
+  const ssId = '1P7JLmqIya4q3-sWd3daTORx6iW9bq4hnRy5ZCVRpL9M';
+  const sheetName = 'Stat';
+  try {
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) throw new Error("ไม่พบแผ่นงานปลายทาง");
+    const data = sheet.getDataRange().getValues();
+    let rowIndex = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0].toString() === timestamp.toString()) { 
+        rowIndex = i + 1; 
+        break; 
+      }
+    }
+    if (rowIndex !== -1) {
+      sheet.getRange(rowIndex, 33).setValue(groupName); 
+      return { success: true, group: groupName };
+    }
+    throw new Error("ไม่พบข้อมูลแถวที่ระบุ");
+  } catch (e) { throw new Error("อัปเดตกลุ่มไม่สำเร็จ: " + e.message); }
+}
