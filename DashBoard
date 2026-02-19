@@ -1,0 +1,146 @@
+<!-- 
+    หน้า Dashboard สำหรับแสดงภาพรวมการรับสมัครและการเทรน
+    ปรับปรุง: เปลี่ยนกลุ่มเป็น X, Y, Z และปรับสีการ์ด Pass/Fail ให้เป็น Solid Color
+    แก้ไข: ปรับปรุงตรรกะการแสดงตัวเลขให้ Trained = Pass + Not Pass เพื่อความถูกต้อง
+-->
+
+<div id="page-dashboard" class="hidden animate-in fade-in duration-500 space-y-8">
+    <h2 class="text-2xl font-black text-slate-800 uppercase tracking-tight flex items-center gap-3">
+        <span class="w-2 h-8 bg-blue-600 rounded-full"></span> 
+        Recruitment & Training Dashboard
+    </h2>
+    
+    <!-- Overview Cards - Row 1: General Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+        <!-- จำนวนผู้สมัครทั้งหมด -->
+        <div class="dash-card bg-white p-6 rounded-[2rem] border shadow-sm flex items-center gap-6">
+            <div class="bg-blue-100 p-4 rounded-3xl text-blue-600">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Applicants</p>
+                <p id="dashTotalAll" class="text-3xl font-black text-slate-800">0</p>
+            </div>
+        </div>
+
+        <!-- ผ่านอบรม (Solid Color - Emerald) -->
+        <div id="dashPassCard" class="dash-card bg-emerald-600 p-6 rounded-[2rem] shadow-lg flex items-center gap-6 text-white border-2 border-emerald-500">
+            <div class="bg-white/20 p-4 rounded-3xl">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold opacity-80 uppercase tracking-widest mb-1">Pass Training</p>
+                <p id="dashTotalPass" class="text-3xl font-black">0</p>
+            </div>
+        </div>
+
+        <!-- ไม่ผ่านอบรม (Solid Color - Red) -->
+        <div id="dashFailCard" class="dash-card bg-red-600 p-6 rounded-[2rem] shadow-lg flex items-center gap-6 text-white border-2 border-red-500">
+            <div class="bg-white/20 p-4 rounded-3xl">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold opacity-80 uppercase tracking-widest mb-1">Not Pass</p>
+                <p id="dashTotalFail" class="text-3xl font-black">0</p>
+            </div>
+        </div>
+
+        <!-- อบรมแล้ว (Trained = Pass + Not Pass | Solid Color - Indigo) -->
+        <div class="dash-card bg-indigo-600 p-6 rounded-[2rem] shadow-lg flex items-center gap-6 text-white border-2 border-indigo-500">
+            <div class="bg-white/20 p-4 rounded-3xl">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold opacity-80 uppercase tracking-widest mb-1">Trained</p>
+                <p id="dashTotalCompleted" class="text-3xl font-black">0</p>
+            </div>
+        </div>
+
+        <!-- รอเข้าเทรน (Waiting = Total - Trained) -->
+        <div class="dash-card bg-white p-6 rounded-[2rem] border shadow-sm flex items-center gap-6">
+            <div class="bg-orange-100 p-4 rounded-3xl text-orange-600">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Waiting</p>
+                <p id="dashTotalPending" class="text-3xl font-black text-slate-800">0</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overview Cards - Row 2: Group Skills Breakdown (X, Y, Z) -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Group X: Application -->
+        <div class="dash-card bg-white p-6 rounded-[2rem] border-2 border-blue-100 shadow-sm flex items-center gap-6">
+            <div class="bg-blue-600 p-4 rounded-3xl text-white shadow-md">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Group X: Application</p>
+                <p id="dashTotalGroupX" class="text-3xl font-black text-blue-700">0</p>
+            </div>
+        </div>
+
+        <!-- Group Y: Cleaning -->
+        <div class="dash-card bg-white p-6 rounded-[2rem] border-2 border-red-100 shadow-sm flex items-center gap-6">
+            <div class="bg-red-500 p-4 rounded-3xl text-white shadow-md">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-red-400 uppercase tracking-widest mb-1">Group Y: Cleaning</p>
+                <p id="dashTotalGroupY" class="text-3xl font-black text-red-700">0</p>
+            </div>
+        </div>
+
+        <!-- Group Z: Problem Solving -->
+        <div class="dash-card bg-white p-6 rounded-[2rem] border-2 border-emerald-100 shadow-sm flex items-center gap-6">
+            <div class="bg-emerald-500 p-4 rounded-3xl text-white shadow-md">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Group Z: Problem Solving</p>
+                <p id="dashTotalGroupZ" class="text-3xl font-black text-emerald-700">0</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Center Breakdown Table -->
+    <div class="grid grid-cols-1 gap-8">
+        <div class="card bg-white p-8 border shadow-sm space-y-6">
+            <h3 class="text-sm font-bold text-slate-800 uppercase flex items-center gap-2">
+                <span class="w-1.5 h-6 bg-blue-600 rounded-full"></span> 
+                Distribution by Training Center
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4" id="dashCenterList">
+                <!-- Data populated by index.html -->
+            </div>
+        </div>
+
+        <div class="card bg-white p-8 border shadow-sm">
+            <h3 class="text-sm font-bold text-slate-800 uppercase flex items-center gap-2 mb-6">
+                <span class="w-1.5 h-6 bg-emerald-600 rounded-full"></span> 
+                Group Counts & Training Progress Details
+            </h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left min-w-[1000px]">
+                    <thead>
+                        <tr class="text-[10px] text-slate-400 uppercase tracking-widest border-b">
+                            <th class="pb-3 px-2">Center</th>
+                            <th class="pb-3 px-2 text-center" title="กลุ่ม X: การใช้งานแอปพลิเคชัน">Group X</th>
+                            <th class="pb-3 px-2 text-center" title="กลุ่ม Y: ทักษะการทำความสะอาด">Group Y</th>
+                            <th class="pb-3 px-2 text-center" title="กลุ่ม Z: การแก้ไขปัญหาเบื้องต้น">Group Z</th>
+                            <th class="pb-3 px-2 text-center text-emerald-600 font-bold border-l">Pass</th>
+                            <th class="pb-3 px-2 text-center text-red-500 font-bold">Not Pass</th>
+                            <th class="pb-3 px-2 text-center text-indigo-600 border-l">Trained</th>
+                            <th class="pb-3 px-2 text-center text-orange-600">Waiting</th>
+                            <th class="pb-3 px-2 text-center font-black border-l">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dashGroupTableBody" class="text-sm font-medium text-slate-600">
+                        <!-- Data populated by index.html -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
