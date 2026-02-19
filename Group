@@ -1,0 +1,60 @@
+<!-- 
+    คอมโพเนนต์ส่วนตัวกรองกลุ่ม (Filter Bar) สำหรับหน้า Managing Groups 
+    ปรับปรุง: เปลี่ยนชื่อกลุ่มจาก A, B, C เป็น X, Y, Z
+-->
+
+<div id="group-component" class="animate-in fade-in duration-500">
+    <div class="card bg-white p-6 shadow-xl border border-slate-200">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            
+            <!-- ปุ่มตัวกรอง: ทั้งหมด (All) -->
+            <button onclick="setTableGroupFilter('all', this)" class="filter-trigger filter-btn-active flex flex-col items-center justify-center gap-2 bg-white p-4 rounded-2xl shadow-sm border-2 border-indigo-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all group">
+                <span class="w-6 h-6 rounded-full bg-indigo-600 shadow-sm group-hover:scale-110 transition-transform"></span>
+                <span class="text-sm font-black text-indigo-700 uppercase tracking-tight">แสดงทั้งหมด</span>
+            </button>
+
+            <!-- ปุ่มตัวกรอง: กลุ่ม X (Application) -->
+            <button onclick="setTableGroupFilter('3. การใช้งานแอปพลิเคชัน', this)" class="filter-trigger flex flex-col items-start gap-2 bg-white p-4 rounded-2xl shadow-sm border-2 border-blue-100 hover:border-blue-500 hover:bg-blue-50 transition-all group">
+                <div class="flex items-center gap-2">
+                    <span class="w-4 h-4 rounded-full bg-blue-500 shadow-sm"></span>
+                    <span class="text-[10px] font-bold text-blue-600 uppercase tracking-widest leading-none">Group X</span>
+                </div>
+                <div class="flex flex-col text-left">
+                    <span class="text-sm font-black text-slate-800 leading-tight">การใช้งานแอปพลิเคชัน</span>
+                    <span class="text-[10px] text-slate-400 mt-1 font-bold italic">(คะแนน SM)</span>
+                </div>
+            </button>
+
+            <!-- ปุ่มตัวกรอง: กลุ่ม Y (Cleaning) -->
+            <button onclick="setTableGroupFilter('1. ทักษะการทำความสะอาดและการใช้อุปกรณ์', this)" class="filter-trigger flex flex-col items-start gap-2 bg-white p-4 rounded-2xl shadow-sm border-2 border-red-100 hover:border-red-500 hover:bg-red-50 transition-all group">
+                <div class="flex items-center gap-2">
+                    <span class="w-4 h-4 rounded-full bg-red-500 shadow-sm"></span>
+                    <span class="text-[10px] font-bold text-red-600 uppercase tracking-widest leading-none">Group Y</span>
+                </div>
+                <div class="flex flex-col text-left">
+                    <span class="text-sm font-black text-slate-800 leading-tight">ทักษะการทำความสะอาดฯ</span>
+                    <span class="text-[10px] text-slate-400 mt-1 font-bold italic">(ข้อสอบ 1-6)</span>
+                </div>
+            </button>
+
+            <!-- ปุ่มตัวกรอง: กลุ่ม Z (Problem Solving) -->
+            <button onclick="setTableGroupFilter('2. การแก้ไขปัญหาและการสื่อสาร', this)" class="filter-trigger flex flex-col items-start gap-2 bg-white p-4 rounded-2xl shadow-sm border-2 border-emerald-100 hover:border-emerald-500 hover:bg-emerald-50 transition-all group">
+                <div class="flex items-center gap-2">
+                    <span class="w-4 h-4 rounded-full bg-emerald-500 shadow-sm"></span>
+                    <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest leading-none">Group Z</span>
+                </div>
+                <div class="flex flex-col text-left">
+                    <span class="text-sm font-black text-slate-800 leading-tight">การแก้ไขปัญหาและการสื่อสาร</span>
+                    <span class="text-[10px] text-slate-400 mt-1 font-bold italic">(ข้อสอบ 7-10)</span>
+                </div>
+            </button>
+
+            <!-- ปุ่มตัวกรอง: ยังไม่มีกลุ่ม -->
+            <button onclick="setTableGroupFilter('none', this)" class="filter-trigger flex flex-col items-center justify-center gap-2 bg-white p-4 rounded-2xl shadow-sm border-2 border-slate-100 hover:border-slate-400 hover:bg-slate-50 transition-all group">
+                <span class="w-5 h-5 rounded-full bg-slate-300 shadow-sm"></span>
+                <span class="text-xs font-bold text-slate-500 uppercase">ยังไม่มีกลุ่ม</span>
+            </button>
+
+        </div>
+    </div>
+</div>
