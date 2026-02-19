@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeNeat Housekeeper Quals Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Kanit', sans-serif; background-color: #f1f5f9; height: 100vh; overflow: hidden; }
+        .sidebar-item { transition: all 0.2s; cursor: pointer; }
+        .sidebar-item:hover { background-color: rgba(255,255,255,0.1); }
+        .sidebar-active { background-color: white !important; color: #2563eb !important; }
+        .card { border-radius: 1.5rem; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #sidebar { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); width: 256px; }
+        .sidebar-closed { transform: translateX(-192px) !important; }
+        .sidebar-overlay { background: rgba(0,0,0,0.5); display: none; position: fixed; inset: 0; z-index: 45; }
+        main { height: calc(100vh - 73px); overflow-y: auto; scroll-behavior: smooth; transition: padding 0.4s ease; }
+        #mainContainer { transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .table-container { overflow-x: auto; max-height: calc(100vh - 350px); overflow-y: auto; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1000px; }
+        th { position: sticky; top: 0; z-index: 10; text-align: left; padding: 12px; background-color: #f8fafc; color: #64748b; font-size: 0.75rem; text-transform: uppercase; border-bottom: 2px solid #e2e8f0; }
+        td { padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 0.875rem; vertical-align: top; }
+        .btn-disabled { background-color: #e2e8f0 !important; color: #94a3b8 !important; border-color: #cbd5e1 !important; cursor: not-allowed !important; opacity: 0.7; }
+        .timeline-mini { border-left: 2px solid #e2e8f0; padding-left: 8px; margin-bottom: 8px; }
+        .animate-pop { animation: pop 0.3s ease-out; }
+        @keyframes pop { 0% { transform: scale(0.98); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .filter-btn-active { border: 2px solid #2563eb !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); transform: translateY(-2px); }
+        .sidebar-content { transition: opacity 0.3s ease; }
+        .sidebar-closed .sidebar-content { opacity: 0; pointer-events: none; }
+        .clickable-name { color: #2563eb; font-weight: 600; cursor: pointer; text-decoration: underline; transition: all 0.2s; }
+        .dash-card { transition: transform 0.2s; }
+        .dash-card:hover { transform: translateY(-4px); }
+        .status-btn { transition: all 0.2s; border: 2px solid transparent; }
+        .status-pass-active { background-color: #10b981 !important; color: white !important; border-color: #059669 !important; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.4); }
+        .status-fail-active { background-color: #ef4444 !important; color: white !important; border-color: #dc2626 !important; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.4); }
+    </style>
+</head>
+<body class="flex">
+
+    <div id="sidebarOverlay" class="sidebar-overlay lg:hidden" onclick="toggleSidebar(false)"></div>
+
+    <!-- Sidebar -->
+    <div id="sidebar" class="fixed inset-y-0 left-0 bg-blue-600 text-white z-50 transform shadow-2xl sidebar-open">
+        <div class="h-full flex flex-col">
+            <div class="p-6 flex items-center justify-between">
+                <div class="flex items-center gap-3 sidebar-content">
+                    <div class="bg-white p-2 rounded-xl shadow-lg shrink-0"><svg class="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path></svg></div>
+                    <h1 class="text-xl font-bold tracking-tighter italic whitespace-nowrap">BeNeat</h1>
+                </div>
+                <button onclick="handleMenuToggle()" class="p-2 bg-blue-700/50 hover:bg-white/20 rounded-xl transition-all border border-white/10 shadow-sm flex items-center justify-center shrink-0">
+                    <svg id="toggleIcon" class="w-5 h-5 text-white transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path id="iconPath" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
+            </div>
+            <nav id="sidebarNav" class="px-6 space-y-2 flex-1 sidebar-content hidden">
+                <div onclick="switchPage('dashboard')" id="menu-dashboard" class="sidebar-item p-4 rounded-2xl flex items-center gap-3 font-medium text-white/80 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>Dashboard
+                </div>
+                <div onclick="switchPage('profile')" id="menu-profile" class="sidebar-item sidebar-active p-4 rounded-2xl flex items-center gap-3 font-medium">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>Profile
+                </div>
+                <div onclick="switchPage('grouping')" id="menu-grouping" class="sidebar-item p-4 rounded-2xl flex items-center gap-3 font-medium text-white/80 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>Managing Groups
+                </div>
+            </nav>
+            <div class="mt-auto p-6 border-t border-white/10 sidebar-content">
+                <p id="userEmailLabel" class="truncate font-bold text-[10px]">กำลังโหลดอีเมล...</p>
+                <p id="userRoleBadge" class="uppercase tracking-widest mt-1 text-[10px] opacity-60">Role: ...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div id="mainContainer" class="flex-1 flex flex-col min-w-0 bg-slate-50 relative lg:ml-64">
+        
+        <!-- Access Denied Screen -->
+        <div id="forbiddenScreen" class="hidden absolute inset-0 z-[100] bg-slate-50 flex items-center justify-center p-8">
+            <div class="max-w-md w-full bg-white p-10 rounded-[3rem] shadow-2xl border text-center space-y-6 animate-pop">
+                <div class="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                </div>
+                <h2 class="text-2xl font-black text-slate-800 uppercase tracking-tight">Access Denied</h2>
+                <p class="text-slate-500 text-sm leading-relaxed">อีเมลของคุณไม่ได้ระบุไว้ในระบบ กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์การเข้าใช้งาน Dashboard นี้</p>
+                <div class="bg-slate-50 p-4 rounded-2xl border border-dashed"><p id="forbiddenEmail" class="text-xs font-bold text-slate-400 italic">email@example.com</p></div>
+            </div>
+        </div>
+
+        <header id="mainHeader" class="bg-white border-b p-4 flex justify-between items-center sticky top-0 z-40 shadow-sm min-h-[73px] hidden">
+            <div class="flex items-center gap-4">
+                <div class="w-10 lg:hidden"></div>
+                <div id="headerFilterArea" class="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">Search Housekeeper:</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="profileSearchInput" oninput="filterHousekeeperSelector()" placeholder="พิมพ์ค้นหาชื่อ..." class="bg-slate-50 border border-slate-200 rounded-xl text-xs p-2 outline-none focus:ring-2 focus:ring-blue-500 w-32 sm:w-48 shadow-inner">
+                        <select id="userSelector" onchange="updateProfile()" class="bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold p-2 outline-none focus:ring-2 focus:ring-blue-500 min-w-[150px] sm:min-w-[200px] shadow-inner">
+                             <option value="">-- รอข้อมูล --</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div id="saveStatus" class="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                <div id="mainLoader" class="loader !w-3 !h-3 hidden"></div>
+                <span id="saveStatusText">Ready</span>
+            </div>
+        </header>
+
+        <main id="mainScroll" class="flex-1 p-4 md:p-8 hidden">
+            <div id="dashboardPlaceholder"></div>
+            
+            <!-- Page Profile -->
+            <div id="page-profile" class="hidden animate-in fade-in duration-500">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <div class="lg:col-span-4 space-y-6">
+                        <div id="profileMainCard" class="card bg-white p-8 shadow-sm border-2 border-transparent flex flex-col items-center text-center transition-all duration-300">
+                            <div class="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mb-4 border-4 border-white shadow-lg"><span id="avatarText" class="text-3xl text-blue-600 font-bold uppercase">BN</span></div>
+                            <h2 id="dispName" class="text-2xl font-bold text-slate-800">-</h2>
+                            <div class="mt-2 text-xs font-medium text-slate-500 flex flex-wrap justify-center gap-2">
+                                <span id="dispAge" class="bg-slate-100 px-2 py-0.5 rounded">อายุ: - ปี</span>
+                                <span id="dispGender" class="bg-slate-100 px-2 py-0.5 rounded">-</span>
+                                <span id="dispExp" class="bg-slate-100 px-2 py-0.5 rounded">ประสบการณ์: -</span>
+                            </div>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase mt-2">
+                                ID: <a id="dispIdLink" href="#" target="_blank" class="text-blue-600 underline hover:text-blue-800 transition-colors">-</a>
+                            </p>
+                            <p id="dispPhone" class="text-xs font-bold text-slate-600 mt-1">📞 เบอร์โทรศัพท์: -</p>
+                            <p id="dispGroup" class="bg-blue-100 text-blue-700 text-[10px] font-bold px-3 py-1 rounded-full uppercase mt-4">ยังไม่มีกลุ่ม</p>
+                            
+                            <!-- เปลี่ยนชื่อกลุ่มเป็น X, Y, Z -->
+                            <div class="w-full mt-6 border-t pt-6 text-left">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase mb-3 tracking-widest">Assign Specialist Group</p>
+                                <div class="grid grid-cols-1 gap-2">
+                                    <button id="btnGroupX" onclick="moveGroup('3. การใช้งานแอปพลิเคชัน')" class="group-btn text-left px-4 py-3 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold border border-blue-100 hover:bg-blue-500 hover:text-white transition-all">กลุ่ม X: การใช้แอปพลิเคชัน</button>
+                                    <button id="btnGroupY" onclick="moveGroup('1. ทักษะการทำความสะอาดและการใช้อุปกรณ์')" class="group-btn text-left px-4 py-3 bg-red-50 text-red-700 rounded-xl text-xs font-bold border border-red-100 hover:bg-red-500 hover:text-white transition-all">กลุ่ม Y: การทำความสะอาด</button>
+                                    <button id="btnGroupZ" onclick="moveGroup('2. การแก้ไขปัญหาและการสื่อสาร')" class="group-btn text-left px-4 py-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-100 hover:bg-emerald-500 hover:text-white transition-all">กลุ่ม Z: การแก้ไขปัญหาฯ</button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 w-full gap-4 mt-8">
+                                <div class="bg-slate-50 p-4 rounded-2xl border"><p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Exam Result</p><p id="dispExamScore" class="text-xl font-black text-blue-600">- / 10</p></div>
+                                <div class="bg-indigo-600 p-4 rounded-2xl text-white shadow-lg"><p class="text-[10px] font-bold opacity-80 uppercase mb-1 tracking-widest text-center">PERFORMANCE</p><p id="dispTotalPercentCard" class="text-3xl font-black text-center">0%</p></div>
+                            </div>
+                        </div>
+
+                        <div class="card bg-white p-6 shadow-sm border space-y-4">
+                            <h3 class="text-sm font-bold text-slate-800 uppercase flex items-center gap-2 border-b pb-2"><span class="w-1.5 h-6 bg-blue-500 rounded-full"></span> ประวัติการประเมิน</h3>
+                            <div class="space-y-3" id="timelineContainer">
+                                <div class="p-3 bg-orange-50 rounded-2xl border-l-4 border-orange-500">
+                                    <p class="text-[9px] font-bold text-orange-600 uppercase mb-1">SM Assessment</p>
+                                    <p id="sumSMComment" class="text-xs text-slate-600 italic whitespace-pre-line">-- ไม่มีข้อมูล --</p>
+                                    <p id="sumSMUser" class="text-[8px] text-orange-400 mt-1 font-bold"></p>
+                                </div>
+                                <div class="p-3 bg-blue-50 rounded-2xl border-l-4 border-blue-500">
+                                    <p class="text-[9px] font-bold text-blue-600 uppercase mb-1">PR Recruit</p>
+                                    <p id="sumPRRecruit" class="text-xs text-slate-600 italic whitespace-pre-line">-- ไม่มีข้อมูล --</p>
+                                    <p id="sumPRRecruitUser" class="text-[8px] text-blue-400 mt-1 font-bold"></p>
+                                </div>
+                                <div class="p-3 bg-emerald-50 rounded-2xl border-l-4 border-emerald-500">
+                                    <p class="text-[9px] font-bold text-emerald-600 uppercase mb-1">PR Trainer</p>
+                                    <p id="sumPRTrainer" class="text-xs text-slate-600 italic whitespace-pre-line">-- ไม่มีข้อมูล --</p>
+                                    <p id="sumPRTrainerUser" class="text-[8px] text-emerald-400 mt-1 font-bold"></p>
+                                </div>
+                                <div class="p-3 bg-purple-50 rounded-2xl border-l-4 border-purple-500">
+                                    <p class="text-[9px] font-bold text-purple-600 uppercase mb-1">QC Phone Follow-up</p>
+                                    <p id="sumQCComment" class="text-xs text-slate-600 italic whitespace-pre-line">-- ไม่มีข้อมูล --</p>
+                                    <p id="sumQCUser" class="text-[8px] text-purple-400 mt-1 font-bold"></p>
+                                </div>
+                                <div class="p-3 bg-indigo-50 rounded-2xl border-l-4 border-indigo-500">
+                                    <p class="text-[9px] font-bold text-indigo-600 uppercase mb-1">SM Final Follow-up</p>
+                                    <p id="sumSMFinalComment" class="text-xs text-slate-600 italic whitespace-pre-line">-- ไม่มีข้อมูล --</p>
+                                    <p id="sumSMFinalUser" class="text-[8px] text-indigo-400 mt-1 font-bold"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-8 space-y-6">
+                        <div class="card bg-white p-8 shadow-sm border animate-pop">
+                            <h3 class="text-sm font-bold text-slate-800 uppercase mb-8 flex items-center gap-2"><span class="w-1.5 h-6 bg-blue-500 rounded-full"></span> SKILL MATRIX RADAR GRAPH</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+                                <div class="relative w-full aspect-square max-w-[320px] mx-auto bg-slate-50 rounded-3xl p-4 flex items-center justify-center border border-slate-100">
+                                    <canvas id="skillChart"></canvas>
+                                </div>
+                                <div class="space-y-3">
+                                    <div class="p-4 rounded-2xl bg-blue-50 border-l-4 border-blue-500 flex justify-between items-center shadow-sm">
+                                        <span class="text-blue-700 font-bold text-[10px] uppercase tracking-tighter leading-tight">X. การใช้แอปฯ (35%)</span>
+                                        <span id="val1" class="font-black text-blue-600 text-lg ml-2">0%</span>
+                                    </div>
+                                    <div class="p-4 rounded-2xl bg-red-50 border-l-4 border-red-500 flex justify-between items-center shadow-sm">
+                                        <span class="text-red-700 font-bold text-[10px] uppercase tracking-tighter leading-tight">Y. การทำความสะอาด (35%)</span>
+                                        <span id="val2" class="font-black text-red-600 text-lg ml-2">0%</span>
+                                    </div>
+                                    <div id="appRowTrigger" class="p-4 rounded-2xl bg-emerald-50 border-l-4 border-emerald-500 flex justify-between items-center cursor-pointer hover:bg-emerald-100 transition-colors shadow-sm" onclick="toggleSMPanel()">
+                                        <span class="text-emerald-700 font-bold text-[10px] uppercase tracking-tighter leading-tight">Z. การแก้ไขปัญหา (30%)</span>
+                                        <div class="flex items-center gap-2 ml-2"><span id="val3" class="font-black text-emerald-600 text-lg">0%</span><div id="smBtnIcon" class="hidden bg-blue-600 text-white p-1 rounded-full shadow-lg"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4"></path></svg></div></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card bg-white p-8 shadow-sm border space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase mb-2 block tracking-widest">PR Recruit Assessment</label>
+                                    <textarea id="prRecruitInput" rows="4" class="w-full p-4 bg-slate-50 border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none text-sm resize-none" placeholder="ระบุความเห็นสรรหา..."></textarea>
+                                </div>
+                                <div class="space-y-4">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase block tracking-widest">PR Trainer Assessment & Info</label>
+                                    <div class="flex gap-2">
+                                        <button id="btnStatusPass" onclick="setTrainingStatus('Pass')" class="status-btn flex-1 py-2 px-3 bg-slate-100 text-slate-400 rounded-xl text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-50 transition-all border border-slate-200">Pass</button>
+                                        <button id="btnStatusFail" onclick="setTrainingStatus('Not Pass')" class="status-btn flex-1 py-2 px-3 bg-slate-100 text-slate-400 rounded-xl text-[10px] font-bold uppercase tracking-wider hover:bg-red-50 transition-all border border-slate-200">Not Pass</button>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="flex flex-col gap-1">
+                                            <span class="text-[10px] font-bold text-slate-500">รหัสคุณแม่บ้าน</span>
+                                            <input type="text" id="housekeeperIdInput" class="w-full p-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-xs" placeholder="ID...">
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <span class="text-[10px] font-bold text-slate-500">คะแนนแบบทดสอบ</span>
+                                            <input type="number" id="postTrainingScoreInput" class="w-full p-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-xs" placeholder="Score...">
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-col gap-1">
+                                        <span class="text-[10px] font-bold text-slate-500 uppercase">เบอร์โทรศัพท์ (Phone)</span>
+                                        <input type="text" id="phoneInput" inputmode="tel" class="w-full p-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-xs" placeholder="0xx-xxx-xxxx">
+                                    </div>
+                                    <textarea id="prTrainerInput" rows="3" class="w-full p-4 bg-slate-50 border rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm resize-none" placeholder="ระบุความเห็นฝึกอบรม..."></textarea>
+                                </div>
+                            </div>
+                            <button onclick="saveData()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all">บันทึกข้อมูลประเมิน PR</button>
+                        </div>
+                        
+                        <div id="smPanel" class="hidden card bg-white p-8 shadow-2xl border-2 border-orange-400 animate-pop">
+                            <h3 class="text-lg font-black text-orange-600 uppercase mb-6 flex items-center gap-2"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>SM & QC Assessment</h3>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                                <div class="bg-orange-50 p-6 rounded-3xl border border-orange-100 text-center"><label class="text-[10px] font-bold text-orange-600 mb-2 uppercase">App Score (0-5)</label><input type="number" id="smAppScore" min="0" max="5" step="0.5" oninput="handleScoreChange()" class="w-full text-4xl font-black text-orange-700 bg-white border-2 border-orange-200 rounded-2xl p-4 text-center outline-none shadow-inner"></div>
+                                <div class="md:col-span-3"><label class="text-[10px] font-bold text-slate-400 mb-2 block uppercase tracking-widest leading-none">SM App Comment (AC)</label><textarea id="smCommentInput" rows="4" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm resize-none outline-none focus:ring-2 focus:ring-orange-400 shadow-inner" placeholder="เหตุผลในการประเมินแอปฯ..."></textarea></div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                <div>
+                                    <label class="text-[10px] font-bold text-purple-600 uppercase mb-2 block tracking-widest">QC Phone Follow-up Comment</label>
+                                    <textarea id="qcCommentInput" rows="3" class="w-full p-4 bg-purple-50 border border-purple-100 rounded-2xl text-sm resize-none outline-none focus:ring-2 focus:ring-purple-400 shadow-inner" placeholder="รายละเอียดการโทรติดตามผลหลังเทรน..."></textarea>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-bold text-indigo-600 uppercase mb-2 block tracking-widest">SM Final Service Comment</label>
+                                    <textarea id="smFinalCommentInput" rows="3" class="w-full p-4 bg-indigo-50 border border-indigo-100 rounded-2xl text-sm resize-none outline-none focus:ring-2 focus:ring-indigo-400 shadow-inner" placeholder="ความเห็นหลังติดตามการเข้าให้บริการเสร็จสิ้น..."></textarea>
+                                </div>
+                            </div>
+                            
+                            <button onclick="saveData()" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-2xl shadow-lg">ยืนยันข้อมูล SM & QC</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-grouping" class="hidden animate-in fade-in duration-500">
+                <div id="groupInfoPlaceholder"></div>
+                <div class="card bg-white shadow-xl border border-slate-200 overflow-hidden flex flex-col mt-4">
+                    <div class="p-6 border-b bg-slate-50 space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                            <div class="relative"><input type="text" id="tableSearch" oninput="applyFilters()" placeholder="ค้นหาชื่อคุณแม่บ้าน..." class="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-blue-500"><svg class="w-5 h-5 absolute left-3 top-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div>
+                            <div class="relative"><select id="centerFilter" onchange="applyFilters()" class="w-full pl-4 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-blue-500 appearance-none"><option value="">-- ศูนย์อบรมทั้งหมด --</option></select><svg class="w-4 h-4 absolute right-3 top-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>
+                            <div class="relative"><select id="dateFilter" onchange="applyFilters()" class="w-full pl-4 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-blue-500 appearance-none"><option value="">-- วันที่อบรมทั้งหมด --</option></select><svg class="w-4 h-4 absolute right-3 top-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>
+                            <div class="relative"><select id="statusFilter" onchange="applyFilters()" class="w-full pl-4 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-blue-500 appearance-none"><option value="">-- สถานะ Pass/Fail --</option><option value="Pass">Pass Only</option><option value="Not Pass">Not Pass Only</option></select><svg class="w-4 h-4 absolute right-3 top-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>
+                            <div class="flex items-center justify-end gap-3"><div class="bg-blue-50 px-5 py-3 rounded-2xl border border-blue-100 flex items-center gap-2"><span class="text-[10px] font-bold text-blue-400 uppercase leading-none">Total:</span><span id="filteredCount" class="font-black text-blue-600 text-lg">0</span></div><button onclick="exportData('xlsx')" class="px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-2xl text-xs font-bold shadow-lg flex items-center gap-2">Excel</button></div>
+                        </div>
+                    </div>
+                    <div class="table-container scroll-hide flex-1">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th width="4%" class="text-center">#</th>
+                                    <th width="14%" class="whitespace-nowrap">รายชื่อ</th>
+                                    <th width="16%" class="whitespace-nowrap">ประวัติ / อบรม</th>
+                                    <th width="18%" class="whitespace-nowrap">ข้อที่ผิดและคำตอบที่ตอบ</th>
+                                    <th width="18%" class="whitespace-nowrap">กลุ่มที่สังกัด</th>
+                                    <th width="30%" class="whitespace-nowrap">Timeline Details (แยกผู้ประเมิน)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="groupTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        var allData = [];
+        var filteredData = []; 
+        var currentUser = { email: '', role: 'Guest' };
+        var myChart = null;
+        var activeGroupFilter = 'all'; 
+        var sidebarOpen = true; 
+        var selectedTrainingStatus = ""; 
+        var activePage = 'dashboard'; 
+
+        var isDataReady = false;
+        var isDashboardReady = false;
+        var isGroupReady = false;
+
+        window.onload = function() { 
+            updateLayoutForSidebar(); 
+            fetchComponents();
+            fetchData(); 
+            switchPage('dashboard');
+        };
+
+        function fetchComponents() {
+            google.script.run.withSuccessHandler(function(html) { 
+                document.getElementById('dashboardPlaceholder').innerHTML = html; 
+                isDashboardReady = true;
+                if (activePage === 'dashboard') switchPage('dashboard');
+                checkAndRefreshAll();
+            }).include('dashboard');
+
+            google.script.run.withSuccessHandler(function(html) { 
+                document.getElementById('groupInfoPlaceholder').innerHTML = html; 
+                isGroupReady = true;
+                if (activePage === 'grouping') switchPage('grouping');
+                checkAndRefreshAll();
+            }).include('group');
+        }
+
+        function checkAndRefreshAll() {
+            if (isDataReady && currentUser.role !== 'Guest') {
+                if (isDashboardReady) updateDashboard();
+                if (isGroupReady) updateGroupCounts();
+            }
+        }
+
+        function handleMenuToggle() { sidebarOpen = !sidebarOpen; toggleSidebar(sidebarOpen); }
+
+        function toggleSidebar(show) {
+            sidebarOpen = show;
+            var sb = document.getElementById('sidebar');
+            var ov = document.getElementById('sidebarOverlay');
+            var main = document.getElementById('mainContainer');
+            var iconPath = document.getElementById('iconPath');
+            if(!sb) return;
+
+            if(show) { 
+                sb.classList.remove('sidebar-closed');
+                if(window.innerWidth < 1024) { 
+                    if(ov) ov.style.display = 'block'; 
+                    if(main) main.style.marginLeft = '0px'; 
+                } else { 
+                    if(main) main.style.marginLeft = '256px'; 
+                }
+                if(iconPath) iconPath.setAttribute('d', 'M6 18L18 6M6 6l12 12');
+            } else { 
+                sb.classList.add('sidebar-closed');
+                if(ov) ov.style.display = 'none'; 
+                if(window.innerWidth < 1024) { 
+                    if(main) main.style.marginLeft = '0px'; 
+                } else { 
+                    if(main) main.style.marginLeft = '64px'; 
+                }
+                if(iconPath) iconPath.setAttribute('d', 'M4 6h16M4 12h16M4 18h16');
+            }
+        }
+
+        function updateLayoutForSidebar() { if(window.innerWidth < 1024) { sidebarOpen = false; toggleSidebar(false); } else { sidebarOpen = true; toggleSidebar(true); } }
+        window.onresize = function() { if(window.innerWidth < 1024 && sidebarOpen) toggleSidebar(false); };
+
+        function goToProfile(originalIndex) {
+            var selector = document.getElementById('userSelector');
+            if(selector) {
+                selector.value = originalIndex;
+                switchPage('profile');
+            }
+        }
+
+        function filterHousekeeperSelector() {
+            var queryInput = document.getElementById('profileSearchInput');
+            var query = queryInput ? queryInput.value.toLowerCase().trim() : "";
+            var selector = document.getElementById('userSelector');
+            if(!selector) return;
+            selector.innerHTML = '';
+            allData.forEach(function(item, index) {
+                if (item.name.toLowerCase().indexOf(query) !== -1) {
+                    var opt = document.createElement('option'); opt.value = index; opt.innerHTML = item.name; selector.appendChild(opt);
+                }
+            });
+            if (selector.options.length > 0) updateProfile();
+        }
+
+        function fetchData(preservedIndex) {
+            var loader = document.getElementById('mainLoader');
+            var statusText = document.getElementById('saveStatusText');
+            if(loader) loader.classList.remove('hidden');
+            if(statusText) statusText.innerText = "AUTHENTICATING...";
+
+            google.script.run
+                .withSuccessHandler(function(response) {
+                    currentUser = response.currentUser;
+                    
+                    var emailLabel = document.getElementById('userEmailLabel');
+                    var roleBadge = document.getElementById('userRoleBadge');
+                    if(emailLabel) emailLabel.innerText = currentUser.email;
+                    if(roleBadge) roleBadge.innerText = "Role: " + currentUser.role;
+
+                    if (currentUser.role === 'Guest') {
+                        document.getElementById('forbiddenScreen').classList.remove('hidden');
+                        document.getElementById('forbiddenEmail').innerText = currentUser.email;
+                        document.getElementById('sidebarNav').classList.add('hidden');
+                        document.getElementById('mainHeader').classList.add('hidden');
+                        document.getElementById('mainScroll').classList.add('hidden');
+                        if(loader) loader.classList.add('hidden');
+                        if(statusText) statusText.innerText = "Unauthorized";
+                        return;
+                    }
+
+                    document.getElementById('sidebarNav').classList.remove('hidden');
+                    document.getElementById('mainHeader').classList.remove('hidden');
+                    document.getElementById('mainScroll').classList.remove('hidden');
+                    document.getElementById('forbiddenScreen').classList.add('hidden');
+
+                    allData = response.housekeepers;
+                    filteredData = [].concat(allData); 
+                    
+                    if(currentUser.role === 'SM' || currentUser.role === 'Admin') {
+                        var smIcon = document.getElementById('smBtnIcon');
+                        if(smIcon) smIcon.classList.remove('hidden');
+                    }
+                    
+                    populateSelector();
+                    populateCenterFilter();
+                    populateDateFilter();
+                    applyFilters();
+                    
+                    var selector = document.getElementById('userSelector');
+                    if (selector) {
+                        if (preservedIndex !== undefined && preservedIndex !== null && preservedIndex !== "") {
+                            selector.value = preservedIndex;
+                            updateProfile(); 
+                        } else if(allData.length > 0) {
+                            selector.value = "0";
+                        }
+                    }
+                    
+                    isDataReady = true;
+                    checkAndRefreshAll();
+                    
+                    if (preservedIndex === undefined || preservedIndex === null || preservedIndex === "") {
+                        switchPage('dashboard');
+                    }
+                    
+                    if(loader) loader.classList.add('hidden');
+                    if(statusText) statusText.innerText = "Ready";
+                })
+                .withFailureHandler(function(err) {
+                    if(loader) loader.classList.add('hidden');
+                    if(statusText) statusText.innerText = "System Error";
+                })
+                .getHousekeeperData();
+        }
+
+        function populateCenterFilter() {
+            var select = document.getElementById('centerFilter');
+            if(!select) return;
+            var centers = [];
+            allData.forEach(function(u) { if(u.trainingCenter && u.trainingCenter !== "-" && centers.indexOf(u.trainingCenter) === -1) centers.push(u.trainingCenter); });
+            centers.sort();
+            select.innerHTML = '<option value="">-- ศูนย์อบรมทั้งหมด --</option>';
+            centers.forEach(function(c) {
+                var opt = document.createElement('option'); opt.value = c; opt.innerText = c; select.appendChild(opt);
+            });
+        }
+
+        function populateDateFilter() {
+            var select = document.getElementById('dateFilter');
+            if(!select) return;
+            var dates = [];
+            allData.forEach(function(u) { if(u.trainingDate && u.trainingDate !== "-" && dates.indexOf(u.trainingDate) === -1) dates.push(u.trainingDate); });
+            dates.sort();
+            select.innerHTML = '<option value="">-- วันที่อบรมทั้งหมด --</option>';
+            dates.forEach(function(d) {
+                var opt = document.createElement('option'); opt.value = d; opt.innerText = d; select.appendChild(opt);
+            });
+        }
+
+        function updateGroupCounts() {
+            var centerEl = document.getElementById('centerFilter');
+            var dateEl = document.getElementById('dateFilter');
+            if(!centerEl || !dateEl || !isGroupReady) return;
+            var center = centerEl.value;
+            var date = dateEl.value;
+            var baseFiltered = allData.filter(function(u) {
+                var cMatch = center === "" || u.trainingCenter === center;
+                var dMatch = date === "" || u.trainingDate === date;
+                return cMatch && dMatch;
+            });
+            var counts = {
+                all: baseFiltered.length,
+                gX: baseFiltered.filter(function(u) { return u.group.indexOf('3.') !== -1; }).length,
+                gY: baseFiltered.filter(function(u) { return u.group.indexOf('1.') !== -1; }).length,
+                gZ: baseFiltered.filter(function(u) { return u.group.indexOf('2.') !== -1; }).length,
+                none: baseFiltered.filter(function(u) { return !u.group || u.group.indexOf('ยังไม่มี') !== -1; }).length
+            };
+            document.querySelectorAll('.filter-trigger').forEach(function(btn) {
+                var labelSm = btn.querySelector('span.text-sm');
+                var labelXs = btn.querySelector('span.text-xs');
+                if (labelSm) {
+                    var text = labelSm.innerText;
+                    if (text.indexOf('แสดงทั้งหมด') !== -1) labelSm.innerHTML = "แสดงทั้งหมด <span class='ml-1 opacity-60'>(" + counts.all + ")</span>";
+                    else if (text.indexOf('การใช้งานแอปพลิเคชัน') !== -1) labelSm.innerHTML = "การใช้งานแอปพลิเคชัน <span class='ml-1 opacity-60'>(" + counts.gX + ")</span>";
+                    else if (text.indexOf('ทักษะการทำความสะอาด') !== -1) labelSm.innerHTML = "ทักษะการทำความสะอาดฯ <span class='ml-1 opacity-60'>(" + counts.gY + ")</span>";
+                    else if (text.indexOf('การแก้ไขปัญหาและการสื่อสาร') !== -1) labelSm.innerHTML = "การแก้ไขปัญหาและการสื่อสาร <span class='ml-1 opacity-60'>(" + counts.gZ + ")</span>";
+                }
+                if (labelXs && labelXs.innerText.indexOf('ยังไม่มีกลุ่ม') !== -1) labelXs.innerHTML = "ยังไม่มีกลุ่ม <span class='ml-1 opacity-60'>(" + counts.none + ")</span>";
+            });
+        }
+
+        function switchPage(page) {
+            activePage = page;
+            var pages = ['dashboard', 'profile', 'grouping'];
+            var menus = ['menu-dashboard', 'menu-profile', 'menu-grouping'];
+            pages.forEach(function(p) {
+                var el = document.getElementById('page-' + p);
+                if(el) el.classList.add('hidden');
+            });
+            menus.forEach(function(m) {
+                var el = document.getElementById(m);
+                if(el) el.classList.remove('sidebar-active');
+            });
+            var targetPage = document.getElementById('page-' + page);
+            if(targetPage) targetPage.classList.remove('hidden');
+            var targetMenu = document.getElementById('menu-' + page);
+            if(targetMenu) targetMenu.classList.add('sidebar-active');
+            var headerFilter = document.getElementById('headerFilterArea');
+            if (headerFilter) {
+                if (page === 'grouping' || page === 'dashboard') headerFilter.classList.add('hidden');
+                else headerFilter.classList.remove('hidden');
+            }
+            if(window.innerWidth < 1024) toggleSidebar(false);
+            if(allData.length > 0) {
+                if(page === 'profile') setTimeout(updateProfile, 50);
+                else if(page === 'dashboard') updateDashboard();
+                else applyFilters();
+            }
+        }
+
+        function updateDashboard() {
+            if(allData.length === 0 || !isDashboardReady) return;
+            
+            // 1. คำนวณจำนวนแยกตามสถานะการเทรน
+            var passCount = allData.filter(function(u) { return u.trainingStatus === "Pass"; }).length;
+            var failCount = allData.filter(function(u) { return u.trainingStatus === "Not Pass"; }).length;
+            
+            // 2. ปรับปรุงตรรกะ: Trained (อบรมแล้ว) ต้องเท่ากับ ผ่าน + ไม่ผ่าน
+            var completed = passCount + failCount;
+            
+            // 3. Waiting (รอเข้าเทรน) = ทั้งหมด - อบรมแล้ว
+            var totalApplicants = allData.length;
+            var pending = totalApplicants - completed;
+            
+            // อัปเดต UI ส่วนการ์ดสรุป
+            var elAll = document.getElementById('dashTotalAll');
+            var elPass = document.getElementById('dashTotalPass');
+            var elFail = document.getElementById('dashTotalFail');
+            var elComp = document.getElementById('dashTotalCompleted');
+            var elPend = document.getElementById('dashTotalPending');
+
+            if(elAll) elAll.innerText = totalApplicants;
+            if(elPass) elPass.innerText = passCount;
+            if(elFail) elFail.innerText = failCount;
+            if(elComp) elComp.innerText = completed;
+            if(elPend) elPend.innerText = pending;
+            
+            // อัปเดต UI ส่วนจำนวนกลุ่ม X, Y, Z
+            var elGroupX = document.getElementById('dashTotalGroupX');
+            var elGroupY = document.getElementById('dashTotalGroupY');
+            var elGroupZ = document.getElementById('dashTotalGroupZ');
+
+            if(elGroupX) elGroupX.innerText = allData.filter(function(u) { return u.group.indexOf('3.') !== -1; }).length;
+            if(elGroupY) elGroupY.innerText = allData.filter(function(u) { return u.group.indexOf('1.') !== -1; }).length;
+            if(elGroupZ) elGroupZ.innerText = allData.filter(function(u) { return u.group.indexOf('2.') !== -1; }).length;
+
+            var centers = {};
+            allData.forEach(function(u) {
+                var c = u.trainingCenter || "-";
+                if(!centers[c]) centers[c] = { total: 0, completed: 0, gX: 0, gY: 0, gZ: 0, pass: 0, fail: 0 };
+                centers[c].total++;
+                
+                // ตรรกะเดียวกันสำหรับตาราง: อบรมแล้ว = ผ่าน + ไม่ผ่าน
+                if(u.trainingStatus === "Pass" || u.trainingStatus === "Not Pass") {
+                    centers[c].completed++;
+                }
+                
+                if(u.group.indexOf('3.') !== -1) centers[c].gX++;
+                else if(u.group.indexOf('1.') !== -1) centers[c].gY++;
+                else if(u.group.indexOf('2.') !== -1) centers[c].gZ++;
+                
+                if(u.trainingStatus === "Pass") centers[c].pass++;
+                else if(u.trainingStatus === "Not Pass") centers[c].fail++;
+            });
+            
+            var centerList = document.getElementById('dashCenterList');
+            if(centerList) {
+                centerList.innerHTML = '';
+                Object.keys(centers).sort().forEach(function(c) {
+                    var data = centers[c];
+                    var pct = Math.round((data.completed / data.total) * 100) || 0;
+                    var row = document.createElement('div');
+                    row.className = "space-y-2";
+                    row.innerHTML = '<div class="flex justify-between items-center text-xs font-bold"><span class="text-slate-600">' + c + '</span><span class="text-blue-600">' + data.completed + ' / ' + data.total + ' (' + pct + '%)</span></div>' +
+                        '<div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden shadow-inner"><div class="bg-blue-600 h-full transition-all duration-1000" style="width: ' + pct + '%"></div></div>';
+                    centerList.appendChild(row);
+                });
+            }
+            
+            var groupTable = document.getElementById('dashGroupTableBody');
+            if(groupTable) {
+                groupTable.innerHTML = '';
+                Object.keys(centers).sort().forEach(function(c) {
+                    var data = centers[c];
+                    var tr = document.createElement('tr');
+                    tr.className = "border-b hover:bg-slate-50";
+                    tr.innerHTML = '<td class="py-4 font-bold text-slate-700">' + c + '</td>' +
+                        '<td class="py-4 text-center text-blue-600 font-bold">' + data.gX + '</td>' +
+                        '<td class="py-4 text-center text-red-600 font-bold">' + data.gY + '</td>' +
+                        '<td class="py-4 text-center text-emerald-600 font-bold">' + data.gZ + '</td>' +
+                        '<td class="py-4 text-center text-emerald-600 font-black border-l border-slate-100">' + data.pass + '</td>' +
+                        '<td class="py-4 text-center text-red-500 font-black">' + data.fail + '</td>' +
+                        '<td class="py-4 text-center text-indigo-600 font-black border-l border-slate-100">' + data.completed + '</td>' +
+                        '<td class="py-4 text-center text-orange-600 font-black">' + (data.total - data.completed) + '</td>' +
+                        '<td class="py-4 text-center text-slate-900 font-black border-l border-slate-100">' + data.total + '</td>';
+                    groupTable.appendChild(tr);
+                });
+            }
+        }
+
+        function populateSelector() {
+            var selector = document.getElementById('userSelector');
+            if(!selector) return;
+            selector.innerHTML = '<option value="">-- เลือกรายชื่อ --</option>';
+            allData.forEach(function(item, index) {
+                var opt = document.createElement('option'); opt.value = index; opt.innerHTML = item.name; selector.appendChild(opt);
+            });
+        }
+
+        function setTableGroupFilter(val, btnElement) {
+            activeGroupFilter = val;
+            document.querySelectorAll('.filter-trigger').forEach(function(btn) { btn.classList.remove('filter-btn-active'); });
+            if(btnElement) btnElement.classList.add('filter-btn-active');
+            applyFilters();
+        }
+
+        function applyFilters() {
+            if(allData.length === 0) return;
+            var searchEl = document.getElementById('tableSearch');
+            var search = searchEl ? searchEl.value.toLowerCase().trim() : "";
+            var centerEl = document.getElementById('centerFilter');
+            var center = centerEl ? centerEl.value : "";
+            var dateEl = document.getElementById('dateFilter');
+            var date = dateEl ? dateEl.value : "";
+            var statusEl = document.getElementById('statusFilter');
+            var status = statusEl ? statusEl.value : "";
+            
+            var groupFilter = activeGroupFilter;
+            var mapped = allData.map(function(u, i) { var obj = Object.assign({}, u); obj.realIdx = i; return obj; });
+            filteredData = mapped.filter(function(u) {
+                var nMatch = u.name.toLowerCase().indexOf(search) !== -1;
+                var cMatch = center === "" || u.trainingCenter === center;
+                var dMatch = date === "" || u.trainingDate === date;
+                var gMatch = groupFilter === 'all' || (groupFilter === 'none' && (u.group.indexOf('ยังไม่มี') !== -1)) || u.group === groupFilter;
+                var sMatch = status === "" || u.trainingStatus === status;
+                return nMatch && gMatch && cMatch && dMatch && sMatch;
+            });
+            var countEl = document.getElementById('filteredCount');
+            if(countEl) countEl.innerText = filteredData.length;
+            var tbody = document.getElementById('groupTableBody');
+            if(!tbody) return;
+            tbody.innerHTML = '';
+            filteredData.forEach(function(u, index) {
+                var tr = document.createElement('tr');
+                var bCls = "bg-slate-100 text-slate-500";
+                var gText = u.group || "ยังไม่มีกลุ่ม";
+                if(gText.indexOf('3.') !== -1) { bCls = "bg-blue-100 text-blue-700"; gText = "กลุ่ม X"; }
+                else if(gText.indexOf('1.') !== -1) { bCls = "bg-red-100 text-red-700"; gText = "กลุ่ม Y"; }
+                else if(gText.indexOf('2.') !== -1) { bCls = "bg-emerald-100 text-emerald-700"; gText = "กลุ่ม Z"; }
+                var wrongList = (u.allWrongWithAnswers && u.allWrongWithAnswers.length > 0) ? u.allWrongWithAnswers.map(function(d) { return "<li class='list-disc ml-3 text-red-500 font-medium'>" + d + "</li>"; }).join('') : '<div class="text-emerald-500 font-bold">10/10</div>';
+                
+                var idDisplay = u.housekeeperId ? 
+                    '<a href="http://admin-test.beneat.co/professional/' + u.housekeeperId + '" target="_blank" class="text-blue-500 hover:text-blue-700 underline transition-colors">ID: ' + u.housekeeperId + '</a>' : 
+                    'ID: -';
+
+                tr.innerHTML = '<td class="text-center font-bold text-slate-400 py-4">' + (index + 1) + '</td>' +
+                    '<td class="py-4">' +
+                        '<div class="clickable-name" onclick="goToProfile(' + u.realIdx + ')">' + u.name + '</div>' +
+                        '<div class="text-[10px] text-indigo-600 font-bold mt-0.5">📞 ' + (u.phone || '-') + '</div>' +
+                        '<div class="text-[9px] text-slate-400 mt-0.5">' + idDisplay + '</div>' +
+                    '</td>' +
+                    '<td><div class="text-[10px] text-slate-500 uppercase">Exam: ' + u.examScore + '/10</div>' +
+                    '<div class="text-[10px] text-indigo-500 font-bold uppercase">Post-Test: ' + (u.postTrainingScore || '-') + '</div>' +
+                    '<div class="font-bold text-blue-600 text-xs mt-1">อบรม: ' + u.trainingDate + '</div><div class="text-[9px] text-slate-400">ศูนย์: ' + u.trainingCenter + '</div></td>' +
+                    '<td><ul class="text-[10px] leading-tight">' + wrongList + '</ul></td>' +
+                    '<td class="py-4"><span class="inline-block px-2 py-1.5 rounded-xl text-[10px] font-bold uppercase ' + bCls + '">' + gText + '</span></td>' +
+                    '<td class="space-y-3 py-4">' +
+                        '<div class="timeline-mini"><span class="text-[9px] font-bold text-orange-500 uppercase">SM Assessment:</span> <span class="text-[10px] text-slate-600 block italic leading-snug mt-1">' + (u.smComment || '-') + '</span></div>' +
+                        '<div class="timeline-mini"><span class="text-[9px] font-bold text-blue-500 uppercase">PR Recruit:</span> <span class="text-[10px] text-slate-600 block italic leading-snug mt-1">' + (u.prRecruit || '-') + '</span></div>' +
+                        '<div class="timeline-mini"><span class="text-[9px] font-bold text-emerald-500 uppercase">PR Trainer:</span> <span class="text-[10px] text-slate-600 block italic leading-snug mt-1">' + (u.prTrainer || '-') + '</span></div>' +
+                        '<div class="timeline-mini"><span class="text-[9px] font-bold text-purple-500 uppercase">QC Follow-up:</span> <span class="text-[10px] text-slate-600 block italic leading-snug mt-1">' + (u.qcComment || '-') + '</span></div>' +
+                        '<div class="timeline-mini"><span class="text-[9px] font-bold text-indigo-500 uppercase">SM Final:</span> <span class="text-[10px] text-slate-600 block italic leading-snug mt-1">' + (u.smFinalComment || '-') + '</span></div>' +
+                    '</td>';
+                tbody.appendChild(tr);
+            });
+            updateGroupCounts();
+        }
+
+        function setTrainingStatus(status) {
+            selectedTrainingStatus = status;
+            var btnPass = document.getElementById('btnStatusPass');
+            var btnFail = document.getElementById('btnStatusFail');
+            var card = document.getElementById('profileMainCard');
+            if(btnPass) btnPass.classList.remove('status-pass-active');
+            if(btnFail) btnFail.classList.remove('status-fail-active');
+            if(card) card.classList.remove('border-emerald-500', 'border-red-500');
+            if (status === 'Pass') { 
+                if(btnPass) btnPass.classList.add('status-pass-active'); 
+                if(card) card.classList.add('border-emerald-500'); 
+            } else if (status === 'Not Pass') { 
+                if(btnFail) btnFail.classList.add('status-fail-active'); 
+                if(card) card.classList.add('border-red-500'); 
+            }
+        }
+
+        function updateProfile() {
+            if(allData.length === 0) return;
+            var idxSelector = document.getElementById('userSelector');
+            var idx = idxSelector ? idxSelector.value : "";
+            if (idx === "" || idx === null) return;
+            var user = allData[idx];
+            if (!user) return;
+            var nameEl = document.getElementById('dispName');
+            var avatarEl = document.getElementById('avatarText');
+            var examEl = document.getElementById('dispExamScore');
+            var ageEl = document.getElementById('dispAge');
+            var genderEl = document.getElementById('dispGender');
+            var expEl = document.getElementById('dispExp');
+            var idLinkEl = document.getElementById('dispIdLink');
+            var groupEl = document.getElementById('dispGroup');
+            var phoneEl = document.getElementById('dispPhone');
+
+            if(nameEl) nameEl.innerText = user.name;
+            if(avatarEl) avatarEl.innerText = user.name ? user.name.substring(0, 2) : "BN";
+            if(examEl) examEl.innerText = user.examScore + " / 10";
+            if(ageEl) ageEl.innerText = "อายุ: " + (user.age || '-') + " ปี";
+            if(genderEl) genderEl.innerText = user.gender || '-';
+            if(expEl) expEl.innerText = "ประสบการณ์: " + (user.expDuration || '-');
+            if(idLinkEl) {
+                idLinkEl.innerText = user.housekeeperId || "-";
+                idLinkEl.href = user.housekeeperId ? "http://admin-test.beneat.co/professional/" + user.housekeeperId : "#";
+            }
+            
+            var gText = user.group || "ยังไม่มีกลุ่ม";
+            if(gText.indexOf('3.') !== -1) gText = "กลุ่ม X: การใช้งานแอปพลิเคชัน";
+            else if(gText.indexOf('1.') !== -1) gText = "กลุ่ม Y: ทักษะการทำความสะอาด";
+            else if(gText.indexOf('2.') !== -1) gText = "กลุ่ม Z: การแก้ไขปัญหาเบื้องต้น";
+            if(groupEl) groupEl.innerText = gText;
+
+            var phoneStr = user.phone || '-';
+            if(phoneEl) phoneEl.innerText = "📞 เบอร์โทรศัพท์: " + phoneStr;
+
+            selectedTrainingStatus = "";
+            setTrainingStatus(user.trainingStatus === "Pass" ? "Pass" : (user.trainingStatus === "Not Pass" ? "Not Pass" : ""));
+            
+            var fRecruit = document.getElementById('prRecruitInput');
+            var fTrainer = document.getElementById('prTrainerInput');
+            var fHkId = document.getElementById('housekeeperIdInput');
+            var fPtScore = document.getElementById('postTrainingScoreInput');
+            var fSmScore = document.getElementById('smAppScore');
+            var fSmComm = document.getElementById('smCommentInput');
+            var fPhone = document.getElementById('phoneInput');
+            var fQCComm = document.getElementById('qcCommentInput');
+            var fSMFinal = document.getElementById('smFinalCommentInput');
+
+            if(fRecruit) fRecruit.value = ""; 
+            if(fTrainer) fTrainer.value = "";
+            if(fHkId) fHkId.value = "";
+            if(fPtScore) fPtScore.value = "";
+            if(fSmScore) fSmScore.value = ""; 
+            if(fSmComm) fSmComm.value = "";
+            if(fPhone) fPhone.value = (user.phone && user.phone !== "-") ? user.phone : "";
+            if(fQCComm) fQCComm.value = "";
+            if(fSMFinal) fSMFinal.value = "";
+            
+            var isPR = currentUser.role === 'PR'; 
+            ['btnGroupX', 'btnGroupY', 'btnGroupZ'].forEach(function(id) {
+                var btn = document.getElementById(id);
+                if(btn) {
+                    if((user.group && user.group !== "ยังไม่มีกลุ่ม") || isPR) btn.classList.add('btn-disabled'); 
+                    else btn.classList.remove('btn-disabled');
+                }
+            });
+            refreshTimeline(user); 
+            updateVisualsOnly(); 
+        }
+
+        function refreshTimeline(user) {
+            var smEl = document.getElementById('sumSMComment');
+            var recEl = document.getElementById('sumPRRecruit');
+            var traEl = document.getElementById('sumPRTrainer');
+            var qcEl = document.getElementById('sumQCComment');
+            var smFEl = document.getElementById('sumSMFinalComment');
+
+            var smU = document.getElementById('sumSMUser');
+            var recU = document.getElementById('sumPRRecruitUser');
+            var traU = document.getElementById('sumPRTrainerUser');
+            var qcU = document.getElementById('sumQCUser');
+            var smFU = document.getElementById('sumSMFinalUser');
+
+            if(smEl) smEl.innerText = user.smComment || "-- ไม่มีข้อมูล --";
+            if(recEl) recEl.innerText = user.prRecruit || "-- ไม่มีข้อมูล --";
+            if(traEl) traEl.innerText = user.prTrainer || "-- ไม่มีข้อมูล --";
+            if(qcEl) qcEl.innerText = user.qcComment || "-- ไม่มีข้อมูล --";
+            if(smFEl) smFEl.innerText = user.smFinalComment || "-- ไม่มีข้อมูล --";
+            
+            if(smU) smU.innerText = user.smUser !== "-" ? ("โดย: " + user.smUser) : "";
+            if(recU) recU.innerText = user.recruitUser !== "-" ? ("โดย: " + user.recruitUser) : "";
+            if(traU) traU.innerText = user.trainerUser !== "-" ? ("โดย: " + user.trainerUser) : "";
+            if(qcU) qcU.innerText = user.qcUser !== "-" ? ("โดย: " + user.qcUser) : "";
+            if(smFU) smFU.innerText = user.smFinalUser !== "-" ? ("โดย: " + user.smFinalUser) : "";
+        }
+
+        function updateVisualsOnly() {
+            if(allData.length === 0) return;
+            var idxSelector = document.getElementById('userSelector');
+            var idx = idxSelector ? idxSelector.value : "";
+            if (idx === "" || idx === null) return;
+            var user = allData[idx];
+            if(!user) return;
+            var v1 = document.getElementById('val1');
+            var v2 = document.getElementById('val2');
+            var v3 = document.getElementById('val3');
+            var vTot = document.getElementById('dispTotalPercentCard');
+
+            // ลำดับข้อมูล X(App), Y(Cleaning), Z(Prob)
+            var appVal = parseFloat(user.stats[0]) || 0;
+            var cleanVal = parseFloat(user.stats[1]) || 0;
+            var probVal = parseFloat(user.stats[2]) || 0;
+            
+            if(v1) v1.innerText = appVal.toFixed(1) + "%"; 
+            if(v2) v2.innerText = cleanVal.toFixed(1) + "%"; 
+            if(v3) v3.innerText = probVal.toFixed(1) + "%"; 
+            if(vTot) vTot.innerText = (cleanVal + appVal + probVal).toFixed(0) + "%";
+            
+            updateChart([user.rawScores[0], user.rawScores[1], user.rawScores[2]]);
+        }
+
+        function saveData() {
+            var idxSelector = document.getElementById('userSelector');
+            var idx = idxSelector ? idxSelector.value : "";
+            var user = allData[idx];
+            if(!user) return;
+            var smComment = document.getElementById('smCommentInput').value;
+            var smScore = document.getElementById('smAppScore').value;
+            var prRecruit = document.getElementById('prRecruitInput').value;
+            var prTrainer = document.getElementById('prTrainerInput').value;
+            var hkId = document.getElementById('housekeeperIdInput').value;
+            var ptScore = document.getElementById('postTrainingScoreInput').value;
+            var phone = document.getElementById('phoneInput').value;
+            var qcComment = document.getElementById('qcCommentInput').value;
+            var smFinalComment = document.getElementById('smFinalCommentInput').value;
+
+            var loader = document.getElementById('mainLoader');
+            var statusText = document.getElementById('saveStatusText');
+            if(loader) loader.classList.remove('hidden');
+            if(statusText) statusText.innerText = "SAVING...";
+            
+            google.script.run
+                .withSuccessHandler(function() {
+                    if(statusText) statusText.innerText = "SUCCESS!";
+                    updateProfile(); 
+                    if(activePage === 'grouping') applyFilters(); 
+                    if(activePage === 'dashboard') updateDashboard(); 
+                    var smPanel = document.getElementById('smPanel');
+                    if(smPanel && !smPanel.classList.contains('hidden')) toggleSMPanel();
+                    setTimeout(function() { 
+                        if(statusText) statusText.innerText = "Ready"; 
+                        if(loader) loader.classList.add('hidden');
+                        fetchData(idx); 
+                    }, 1000);
+                })
+                .withFailureHandler(function(err) { 
+                    if(statusText) statusText.innerText = "ERROR!"; 
+                    if(loader) loader.classList.add('hidden');
+                })
+                .saveAssessment(user.timestamp, smComment, smScore, prRecruit, prTrainer, hkId, ptScore, selectedTrainingStatus, phone, qcComment, smFinalComment);
+        }
+
+        function moveGroup(target) {
+            if(currentUser.role === 'PR') return;
+            var idxSelector = document.getElementById('userSelector');
+            var idx = idxSelector ? idxSelector.value : "";
+            var user = allData[idx];
+            if(!user || (user.group && user.group !== "ยังไม่มีกลุ่ม")) return;
+            var loader = document.getElementById('mainLoader');
+            var statusText = document.getElementById('saveStatusText');
+            if(loader) loader.classList.remove('hidden');
+            if(statusText) statusText.innerText = "MOVING...";
+            google.script.run
+                .withSuccessHandler(function() {
+                    fetchData(idx);
+                    if(statusText) statusText.innerText = "MOVED!";
+                    setTimeout(function() { 
+                        if(statusText) statusText.innerText = "Ready"; 
+                        if(loader) loader.classList.add('hidden');
+                    }, 2000);
+                })
+                .withFailureHandler(function() {
+                    if(loader) loader.classList.add('hidden');
+                    if(statusText) statusText.innerText = "ERROR";
+                })
+                .updateHousekeeperGroup(user.timestamp, target);
+        }
+
+        function exportData(fmt) {
+            if(filteredData.length === 0) return;
+            var list = filteredData.map(function(u) { 
+                var gText = u.group || "ยังไม่มีกลุ่ม";
+                if(gText.indexOf('3.') !== -1) gText = "กลุ่ม X";
+                else if(gText.indexOf('1.') !== -1) gText = "กลุ่ม Y";
+                else if(gText.indexOf('2.') !== -1) gText = "กลุ่ม Z";
+                return { 
+                    'รายชื่อ': u.name, 'ID': u.housekeeperId, 'เบอร์โทรศัพท์': u.phone || '-', 'กลุ่ม': gText, 'วันที่อบรม': u.trainingDate,
+                    'ศูนย์อบรม': u.trainingCenter, 'สถานะ': u.trainingStatus,
+                    'SM Comment': u.smComment || '-', 'PR Recruit Comment': u.prRecruit || '-', 'PR Trainer Comment': u.prTrainer || '-',
+                    'QC Post-Training': u.qcComment || '-', 'SM Final Service': u.smFinalComment || '-'
+                }; 
+            });
+            if(fmt === 'xlsx') {
+                var ws = XLSX.utils.json_to_sheet(list);
+                var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Housekeepers");
+                XLSX.writeFile(wb, "BeNeat_Quals_Report_" + Date.now() + ".xlsx");
+            }
+        }
+
+        function updateChart(scores) {
+            var canvas = document.getElementById('skillChart');
+            if(!canvas) return;
+            var ctx = canvas.getContext('2d');
+            if (myChart) myChart.destroy();
+            myChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: [['X: แอปฯ (35%)'], ['Y: ความสะอาด (35%)'], ['Z: แก้ปัญหา (30%)']],
+                    datasets: [{ data: scores, fill: true, backgroundColor: 'rgba(37, 99, 235, 0.25)', borderColor: 'rgb(37, 99, 235)', borderWidth: 4, pointRadius: 5 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { r: { suggestedMin: 0, suggestedMax: 100, ticks: { display: false }, pointLabels: { font: { size: 10, family: 'Kanit', weight: 'bold' } } } },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function toggleSMPanel() { if(currentUser.role === 'SM' || currentUser.role === 'Admin') {
+            var p = document.getElementById('smPanel');
+            if(p) p.classList.toggle('hidden');
+        }}
+
+        function handleScoreChange() { 
+            var input = document.getElementById('smAppScore');
+            if(!input) return;
+            var s = parseFloat(input.value) || 0;
+            if(s > 5) s = 5; if(s < 0) s = 0;
+            input.value = s;
+        }
+    </script>
+</body>
+</html>
